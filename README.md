@@ -1,80 +1,132 @@
 # Predicting Diabetes Risk from Health Survey Data
 
 Capstone project for the Post Graduate Program in AI and Machine Learning.
-This repository contains the **initial report and exploratory data analysis (Module 20)**.
+This report is written for readers **without a background in ML or AI**. The technical work is in the two Jupyter notebooks linked below.
 
-## Research question
+## Summary
 
-Can lifestyle and health indicators from a national health survey predict whether a person has diabetes, and which factors matter most?
+- **Question:** Can a few easy health and lifestyle questions tell us who is most likely to have diabetes, so that clinics can decide who to test first?
+- **Answer:** Partly. A model built on a national survey can pick out a group that holds most people with diabetes. Testing the **30% of people with the highest risk score finds about 70% of all cases**, while picking 30% at random would find only 30%.
+- **Catch 1:** It is a *screening aid*, not a diagnosis. When set to find about 8 in 10 people with diabetes, only about 3 in 10 of the people it flags really have diabetes. The rest need a follow-up test that shows they are fine.
+- **Catch 2:** It works **much worse for young adults** (it finds fewer than 1 in 4 of the cases aged 18 to 34) and somewhat worse for higher-income people. This must be fixed or handled before any real use.
 
-## Why this question is important
+## Why this question matters
 
-Diabetes often goes undetected for years, and complications such as heart disease, kidney damage and vision loss may start before it is found. A simple model built on easy survey questions could help clinics and public health teams decide who to screen first, and which habits to focus awareness campaigns on.
+Diabetes often goes unnoticed for years, and by the time it is found, damage to the heart, kidneys and eyes may already have started. Testing everyone is expensive. If a short list of questions can show who is more likely to have diabetes, clinics and public health teams can spend their limited testing budget where it is most likely to help, and focus awareness campaigns on the right habits and groups.
 
-## Data
+## The data
 
-- **Source:** CDC Behavioral Risk Factor Surveillance System (BRFSS) 2015, in the cleaned Kaggle version *Diabetes Health Indicators Dataset* by Alex Teboul (license: CC0, public domain).
-- **File used:** `data/diabetes_binary_health_indicators_BRFSS2015.csv`
-- **Size:** 253,680 survey responses, 21 features and one target (`Diabetes_binary`: 0 = no diabetes, 1 = prediabetes or diabetes).
-- **Features:** health indicators (high blood pressure, high cholesterol, BMI, stroke, heart disease), lifestyle (physical activity, smoking, fruit and vegetable intake, alcohol), access to care, self-rated general, mental and physical health, and demographics (age band, sex, education, income).
+- **Source:** the US CDC's 2015 *Behavioral Risk Factor Surveillance System* health survey, in the cleaned Kaggle version *Diabetes Health Indicators Dataset* (public domain license).
+- **Size:** 253,680 people answered 21 questions. After removing 24,206 exact duplicate rows, **229,474 responses** were used.
+- **Questions include:** blood pressure, cholesterol, weight (BMI), smoking, exercise, diet, self-rated general health, age group, income and education.
+- **Outcome:** whether the person has been told they have diabetes or prediabetes. About **15%** of respondents say yes.
 
-## Methods
+## What was done (in plain words)
 
-1. **Data cleaning:** no missing values were found; 24,206 exact duplicate rows were removed (229,474 rows remain); value ranges were checked; outliers were analysed with the IQR rule. BMI was capped at the 99th percentile, and the skewed "unhealthy days" columns were kept because the values are real.
-2. **Feature engineering:** capped BMI, BMI category, readable age groups, and a count of six health risk flags.
-3. **Exploratory data analysis:** class balance, distributions of continuous variables, diabetes rates by health and lifestyle factors, age, general health, income and BMI category, and a correlation heatmap.
-4. **Baseline model:** Logistic Regression with standardized features and balanced class weights, compared with a "always predict no diabetes" baseline and an unbalanced Logistic Regression. 80/20 stratified train/test split, plus 5-fold cross-validation.
-5. **Evaluation metric:** **recall** for the diabetes class (main metric, because missing a person with diabetes is worse than a false alarm), with ROC-AUC, precision and F1 reported alongside. Accuracy is shown but not used to pick a model, because 85% of respondents do not have diabetes.
+1. **Cleaned the data:** checked for missing or impossible values, removed duplicates, and limited a few extreme weight values so they would not distort results.
+2. **Looked at the data** with charts to see which answers go together with diabetes (notebook 1).
+3. **Built a simple first model** (notebook 1), as a yardstick.
+4. **Tried three more advanced models** (a decision tree, a random forest and gradient boosting) and compared them with the simple one (notebook 2). Each was tested several times on different slices of the data, and its settings were tuned by trying many combinations.
+5. **Chose how cautious the model should be.** The model gives each person a risk score. We decided that a person is "flagged" when the score is high enough to find about **80% of people with diabetes**, because missing someone with diabetes is worse than sending a healthy person for an extra test.
+6. **Checked fairness:** looked at how well the model works for different age groups, income groups and for women and men.
+
+The final test used 45,895 people that the model had **never seen** while it was being built or tuned.
 
 ## Results
 
-| Model | Accuracy | Recall | Precision | F1 | ROC-AUC |
-|---|---|---|---|---|---|
-| Always predict "no diabetes" | 0.847 | 0.000 | 0.000 | 0.000 | 0.500 |
-| Logistic Regression (default) | 0.853 | 0.168 | 0.562 | 0.259 | 0.812 |
-| **Logistic Regression (balanced), chosen baseline** | 0.715 | **0.762** | 0.319 | 0.450 | 0.812 |
+### Which model was best?
 
-- The balanced baseline finds about **76% of people with diabetes**, at the cost of many false alarms (about 68% of the people it flags do not have diabetes).
-- 5-fold cross-validation gives recall 0.755 (std 0.005) and ROC-AUC 0.809 (std 0.003), so the result is stable.
-- Accuracy would have suggested that the "always no diabetes" model is good, even though it finds nobody. This is why recall and ROC-AUC are used.
+| Model | How well it ranks people by risk (0.5 = guessing, 1.0 = perfect) | Share of flagged people who really have diabetes, when 80% of cases are found |
+|---|---|---|
+| Simple first model (Logistic Regression) | 0.812 | 30.5% |
+| Decision Tree | 0.804 | 28.9% |
+| Random Forest | 0.816 | 30.8% |
+| **Gradient Boosting (chosen)** | **0.819** | **31.5%** |
 
-### Key findings from the exploratory analysis
+**All four models perform similarly.** The most advanced model is only slightly better than the simple one. The survey answers contain a limited amount of information, and a more complex model cannot create information that is not there.
 
-- The diabetes rate rises steadily with **age** (about 1% in the youngest group to about 23% at ages 70 to 74).
-- Self-rated **general health** is the strongest signal: about 3% with excellent health versus about 38% with poor health.
-- **High blood pressure, high cholesterol, heart disease, stroke and difficulty walking** each go with a rate two to four times higher than for people without that condition.
-- **Obese** respondents have a rate of about 24%, versus about 6% to 7% for underweight and normal weight.
-- **Lower income** goes with a higher rate; **physical activity** goes with a lower rate.
-- The largest coefficients in the baseline model are general health, BMI, age and high blood pressure.
+### How the chosen model performs on the test group
+
+| | Result |
+|---|---|
+| People with diabetes found | **5,704 of 7,019 (81%)** |
+| People with diabetes missed | 1,315 (19%) |
+| Healthy people flagged for a follow-up test | 12,704 of 38,876 (33%) |
+| Flagged people who really have diabetes | 31% (about 3 in 10) |
+
+### Who to test first
+
+If a clinic can only follow up the people with the highest risk scores:
+
+| Test the top ... of people | Share of all diabetes cases found | Random selection would find |
+|---|---|---|
+| 10% | 33% | 10% |
+| 20% | 54% | 20% |
+| 30% | 70% | 30% |
+| 40% | 81% | 40% |
+| 50% | 89% | 50% |
+
+## Important findings
+
+### What goes with diabetes
+- **Self-rated general health** matters most. About 3% of people who rate their health as excellent have diabetes, against about 38% of those who rate it poor.
+- **Weight (BMI)** and **age** come next. The rate rises steadily with age, from about 1% in the youngest group to about 23% at ages 70 to 74, and is about 24% among obese people against 6% to 7% among people of normal weight.
+- **High blood pressure** and **high cholesterol** also matter. The rate is two to four times higher in people with these, or with heart disease, stroke or difficulty walking.
+- **Lower income** goes with a higher rate, and **physical activity** goes with a lower rate.
+
+These are links, not proof of cause. For example, the model does not show that high blood pressure *causes* diabetes.
+
+### Where the model works less well
+
+| Group | Share who have diabetes | Share of their cases the model finds |
+|---|---|---|
+| Age 18-34 | 2% | **23%** |
+| Age 35-49 | 8% | 60% |
+| Age 50-64 | 17% | 81% |
+| Age 65+ | 22% | 87% |
+| Income under $20k | 25% | 90% |
+| Income $20-35k | 19% | 86% |
+| Income $35-75k | 14% | 78% |
+| Income $75k+ | 10% | 70% |
+| Women | 14% | 80% |
+| Men | 17% | 82% |
+
+- **Young adults are mostly missed.** Age is one of the strongest signals, so younger people get a low risk score even when they have diabetes. With one cut-off for everybody, most young adults with diabetes would not be flagged. The model does rank younger people sensibly among themselves, so a separate, lower cut-off for younger groups is likely to help (at the cost of more false alarms there).
+- **Higher-income people are also missed more often** (70% found against 90% for the lowest income group).
+- Women and men get similar results.
 
 ## Limitations
 
-- Self-reported survey data from 2015, with possible reporting errors; may not describe the population today.
-- The target combines prediabetes and diabetes and cannot separate type 1 from type 2.
-- Some removed duplicate rows may have been real, different people with identical answers.
-- The results show association, not causation, and the model is a screening aid, not a diagnosis.
+- The data are **self-reported answers from 2015**. People may remember or report things wrongly, and the population may have changed since.
+- "Diabetes" here includes prediabetes, and type 1 and type 2 cannot be separated.
+- The model sees only survey answers, not blood tests, so it cannot be very precise.
+- Some removed duplicate rows may have been real people with identical answers.
+- Only a small set of model settings was tried, to keep the work practical.
+- Some groups (such as young adults with diabetes) have few cases, so their numbers are less certain.
 
-## Next steps (Module 24)
+## Recommendations and next steps
 
-- Compare the baseline with Decision Tree, Random Forest and Gradient Boosting models, tuned with cross-validation.
-- Choose the decision threshold using the trade-off between recall and precision.
-- Check model performance across age and income groups.
-- Write the non-technical final report with recommendations on who to screen first.
+1. **Use the model only as a screening aid** to decide who to test first. Anyone flagged still needs a proper diabetes test, and anyone with symptoms should be tested whatever the score.
+2. **Do not use one cut-off for everyone.** Try separate cut-offs for adults under 50, and agree with health professionals on how many false alarms each group can bear.
+3. **Test on newer data** (for example the 2022 survey) to see whether the model still works today.
+4. **Add blood-test results** such as blood sugar, if available, to see how much more accurate the model can become.
+5. **Run a small pilot** in a clinic: follow up the people the model flags, and measure how many really have diabetes and what the extra testing costs.
 
-## Repository structure
+## Repository contents
 
 ```
 diabetes-risk-capstone/
-├── README.md
+├── README.md                              (this report)
 ├── data/
 │   └── diabetes_binary_health_indicators_BRFSS2015.csv
 ├── notebooks/
-│   └── 01_initial_report_eda.ipynb
+│   ├── 01_initial_report_eda.ipynb        (cleaning, charts and first model)
+│   └── 02_final_models_and_report.ipynb   (model comparison, tuning, threshold, fairness check)
 └── reports/
-    └── Initial_Report_Summary.docx
+    └── Initial_Report_Summary.docx        (summary of the initial report)
 ```
 
 ## How to run
 
-1. Install Python 3.10+ and the packages: `pandas`, `numpy`, `matplotlib`, `seaborn`, `scikit-learn`, `jupyter`.
-2. Open `notebooks/01_initial_report_eda.ipynb` in Jupyter and choose **Run All**. The notebook reads the data from `../data/`.
+1. Install Python 3.10+ and the packages `pandas`, `numpy`, `matplotlib`, `seaborn`, `scikit-learn` and `jupyter`.
+2. Open the notebooks in the `notebooks/` folder in Jupyter and choose **Run All**, first `01_...` and then `02_...`. Both read the data from `../data/`. Notebook 2 takes a few minutes because of the model tuning.
